@@ -345,6 +345,47 @@ python -m client.weather_client
 pip install --upgrade certifi
 ```
 
+## Authentication Issues
+
+### Issue: "Authentication Error: Missing API key"
+
+**Problem:** Server requires authentication, but client didn't provide a key.
+
+**Solution:**
+```bash
+# Add to client .env:
+MCP_CLIENT_API_KEY=your_key_here
+
+# Must match one of the keys in MCP_SERVER_API_KEYS
+```
+
+### Issue: "Authentication Error: Invalid API key"
+
+**Problem:** Client provided a key that doesn't match any valid server keys.
+
+**Solutions:**
+1. Check for typos in `.env` file
+2. Ensure keys match exactly (no extra spaces/quotes)
+3. Regenerate keys if needed:
+```bash
+python generate_api_key.py
+```
+
+### Issue: Want to disable authentication
+
+**Solution:**
+```bash
+# In .env, leave server keys empty:
+MCP_SERVER_API_KEYS=
+
+# Remove or comment out client key:
+# MCP_CLIENT_API_KEY=
+```
+
+Server will show: `🔓 Authentication: DISABLED`
+
+For complete authentication guide, see [AUTHENTICATION.md](AUTHENTICATION.md).
+
 ## Getting Help
 
 If you're still stuck:

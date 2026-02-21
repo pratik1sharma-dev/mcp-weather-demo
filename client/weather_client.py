@@ -266,8 +266,19 @@ class WeatherClient:
 
     async def connect_to_server(self):
         """Connect to the MCP Weather Server via stdio."""
+        # Prepare environment with API key for authentication
+        server_env = os.environ.copy()
+
+        # Pass client API key to server if configured
+        client_api_key = os.getenv("MCP_CLIENT_API_KEY")
+        if client_api_key:
+            server_env["MCP_CLIENT_API_KEY"] = client_api_key
+            print("🔒 Authenticating with MCP server...", file=sys.stderr)
+
         server_params = StdioServerParameters(
-            command="python", args=["-m", "server.weather_server"], env=None
+            command="python",
+            args=["-m", "server.weather_server"],
+            env=server_env  # Pass environment with API key
         )
 
         stdio_transport = await self.exit_stack.enter_async_context(

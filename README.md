@@ -128,9 +128,35 @@ Try asking:
 
 - **Tools**: Weather tools exposed by the server (get_current_weather, get_forecast, etc.)
 - **Server**: Standardized way to expose functionality to AI models
-- **Client Integration**: How to connect MCP servers with AI models (Gemini in this case)
+- **Client Integration**: How to connect MCP servers with AI models (Gemini or Claude)
 - **Protocol**: JSON-RPC 2.0 communication over stdio
 - **Function Calling**: How AI models invoke tools through MCP
+- **Authentication**: Optional API key-based authentication for secure access
+
+## 🔒 Security (Optional)
+
+The server supports **API key authentication** to control access. This is useful for production deployments.
+
+**Quick setup:**
+```bash
+# Generate a secure key
+python -c "import secrets; print(secrets.token_urlsafe(32))"
+
+# Add to .env:
+MCP_SERVER_API_KEYS=your_generated_key
+MCP_CLIENT_API_KEY=your_generated_key
+```
+
+For detailed instructions, see [AUTHENTICATION.md](AUTHENTICATION.md).
+
+**Note:** Authentication is **disabled by default** for easy local development. Leave `MCP_SERVER_API_KEYS` empty to skip authentication.
+
+## Documentation
+
+- **[README.md](README.md)** - Quick start guide (you are here)
+- **[TUTORIAL.md](TUTORIAL.md)** - Deep dive into MCP concepts
+- **[AUTHENTICATION.md](AUTHENTICATION.md)** - Security and API key setup
+- **[TROUBLESHOOTING.md](TROUBLESHOOTING.md)** - Common issues and solutions
 
 ## License
 

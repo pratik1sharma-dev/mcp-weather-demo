@@ -3,6 +3,7 @@
 MCP Weather Server
 
 Exposes weather-related tools through the Model Context Protocol.
+Supports optional API key authentication for secure access.
 """
 
 import asyncio
@@ -16,6 +17,8 @@ from mcp.server import Server
 from mcp.server.stdio import stdio_server
 from mcp.types import Tool, TextContent
 
+from server.auth import AuthManager, validate_request
+
 # Load environment variables
 load_dotenv()
 
@@ -23,8 +26,14 @@ load_dotenv()
 OPENWEATHER_API_KEY = os.getenv("OPENWEATHER_API_KEY")
 OPENWEATHER_BASE_URL = "https://api.openweathermap.org/data/2.5"
 
+# Authentication configuration
+auth_manager = AuthManager()
+
 # Initialize MCP server
 app = Server("weather-server")
+
+# Store client API key (received during connection)
+client_api_key = None
 
 
 def get_weather_data(endpoint: str, params: dict) -> dict:
@@ -119,6 +128,11 @@ async def call_tool(name: str, arguments: Any) -> list[TextContent]:
     Returns:
         Tool result as TextContent
     """
+    # Validate authentication
+    is_valid, error_msg = validate_request(client_api_key, auth_manager)
+    if not is_valid:
+        return [TextContent(type="text", text=f"❌ Authentication Error: {error_msg}")]
+
     if name == "get_current_weather":
         city = arguments.get("city")
         data = get_weather_data("weather", {"q": city})
@@ -192,6 +206,34 @@ async def call_tool(name: str, arguments: Any) -> list[TextContent]:
         return [TextContent(type="text", text=f"Unknown tool: {name}")]
 
 
+def set_client_api_key(key: str):
+    """Set the client API key from connection metadata."""
+    global client_api_key
+    client_api_key = key
+
+
+# Custom initialization handler to receive API key
+@app.initialize()
+async def initialize(initialization_options=None):
+    """
+    Handle initialization with optional API key.
+
+    Clients can pass API key through environment or connection metadata.
+    """
+    global client_api_key
+
+    # Try to get API key from client environment (passed through)
+    client_api_key = os.getenv("MCP_CLIENT_API_KEY")
+
+    if auth_manager.is_enabled():
+        if client_api_key:
+            print("🔒 Authentication enabled - API key provided", file=sys.stderr)
+        else:
+            print("⚠️  Authentication enabled - No API key provided by client", file=sys.stderr)
+    else:
+        print("🔓 Authentication disabled - All requests allowed", file=sys.stderr)
+
+
 async def main():
     """
     Run the MCP server.
@@ -201,6 +243,12 @@ async def main():
         sys.exit(1)
 
     print("Starting MCP Weather Server...", file=sys.stderr)
+
+    # Print authentication status
+    if auth_manager.is_enabled():
+        print(f"🔒 Authentication: ENABLED ({len(auth_manager.api_keys)} valid key(s))", file=sys.stderr)
+    else:
+        print("🔓 Authentication: DISABLED (set MCP_SERVER_API_KEYS to enable)", file=sys.stderr)
 
     async with stdio_server() as (read_stream, write_stream):
         await app.run(read_stream, write_stream, app.create_initialization_options())

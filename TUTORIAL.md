@@ -324,13 +324,31 @@ async def list_resources():
     return [Resource(uri="weather://alerts", ...)]
 ```
 
-### Add Authentication
+### Authentication (Already Implemented!)
+
+This demo includes **API key authentication**:
+
 ```python
-# Require API key for server access
-@app.set_security()
-async def check_auth(headers):
-    # Verify API key
+# Server: Validate API key before processing
+@app.call_tool()
+async def call_tool(name: str, arguments: Any):
+    is_valid, error_msg = validate_request(client_api_key, auth_manager)
+    if not is_valid:
+        return [TextContent(type="text", text=f"❌ {error_msg}")]
+    # ... process tool call
 ```
+
+**Enable authentication:**
+```bash
+# Generate key
+python generate_api_key.py
+
+# Add to .env
+MCP_SERVER_API_KEYS=your_key_here
+MCP_CLIENT_API_KEY=your_key_here
+```
+
+See [AUTHENTICATION.md](AUTHENTICATION.md) for full guide.
 
 ## Common Patterns
 
