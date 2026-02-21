@@ -32,26 +32,49 @@ pip install anthropic==0.39.0 mcp==1.0.0 requests==2.31.0 python-dotenv==1.0.0
 
 ## API Key Issues
 
-### Issue: "OPENWEATHER_API_KEY not set"
+### Issue: "API key not set"
 
 **Checklist:**
 1. ✅ Created `.env` file in project root
 2. ✅ Copied content from `.env.example`
-3. ✅ Added actual API key (not placeholder text)
-4. ✅ No spaces around the `=` sign
-5. ✅ No quotes around the key
+3. ✅ Added actual API keys (not placeholder text)
+4. ✅ Set `AI_PROVIDER` to match your provider
+5. ✅ No spaces around the `=` sign
+6. ✅ No quotes around the keys
 
 **Correct format:**
 ```
+AI_PROVIDER=gemini
 OPENWEATHER_API_KEY=abc123def456
 GEMINI_API_KEY=AIzaSy...
+# OR
+AI_PROVIDER=anthropic
+OPENWEATHER_API_KEY=abc123def456
+ANTHROPIC_API_KEY=sk-ant-...
 ```
 
 **Incorrect formats:**
 ```
-OPENWEATHER_API_KEY = abc123     # ❌ spaces
-OPENWEATHER_API_KEY="abc123"     # ❌ quotes
-OPENWEATHER_API_KEY=your_key_here  # ❌ placeholder
+AI_PROVIDER = gemini            # ❌ spaces
+GEMINI_API_KEY="abc123"         # ❌ quotes
+GEMINI_API_KEY=your_key_here    # ❌ placeholder
+```
+
+### Issue: "Unknown AI_PROVIDER"
+
+**Error:** `ValueError: Unknown AI_PROVIDER: xyz`
+
+**Solution:** Check your `.env` file. `AI_PROVIDER` must be either:
+- `gemini` (for Google Gemini)
+- `anthropic` (for Anthropic Claude)
+
+```bash
+# Correct
+AI_PROVIDER=gemini
+
+# Wrong
+AI_PROVIDER=claude      # ❌ Use "anthropic" not "claude"
+AI_PROVIDER=openai      # ❌ Not supported yet
 ```
 
 ### Issue: "Invalid API key" from OpenWeatherMap
@@ -62,18 +85,33 @@ OPENWEATHER_API_KEY=your_key_here  # ❌ placeholder
 3. Check that you're using the correct key type (free tier works)
 4. Ensure no extra characters were copied
 
-### Issue: Gemini API errors
+### Issue: Gemini API errors (when AI_PROVIDER=gemini)
 
 **Common causes:**
 - Invalid API key
 - Rate limiting (free tier: 15 requests/min, 1500/day)
 - API not enabled
+- Package not installed
 
-**Solution:**
-1. Check key at https://makersuite.google.com/app/apikey
-2. Verify API is enabled for your Google Cloud project
-3. Check rate limits if getting 429 errors
-4. Wait a minute and try again
+**Solutions:**
+1. Verify key at https://makersuite.google.com/app/apikey
+2. Check API is enabled for your Google Cloud project
+3. If getting 429 errors, wait a minute (rate limit)
+4. Install package: `pip install google-generativeai`
+
+### Issue: Anthropic API errors (when AI_PROVIDER=anthropic)
+
+**Common causes:**
+- Invalid API key
+- Insufficient credits
+- Rate limiting
+- Package not installed
+
+**Solutions:**
+1. Verify key at https://console.anthropic.com/
+2. Check account has credits
+3. Add payment method if needed
+4. Install package: `pip install anthropic`
 
 ## Runtime Issues
 
@@ -356,7 +394,7 @@ python --version
 pip list | grep -E "google-generativeai|mcp|requests"
 
 # 3. Check environment
-python -c "from dotenv import load_dotenv; import os; load_dotenv(); print('Weather API:', 'OK' if os.getenv('OPENWEATHER_API_KEY') else 'MISSING'); print('Gemini API:', 'OK' if os.getenv('GEMINI_API_KEY') else 'MISSING')"
+python -c "from dotenv import load_dotenv; import os; load_dotenv(); print('AI Provider:', os.getenv('AI_PROVIDER', 'NOT SET')); print('Weather API:', 'OK' if os.getenv('OPENWEATHER_API_KEY') else 'MISSING'); print('Gemini API:', 'OK' if os.getenv('GEMINI_API_KEY') else 'MISSING'); print('Anthropic API:', 'OK' if os.getenv('ANTHROPIC_API_KEY') else 'MISSING')"
 
 # 4. Test server
 python -c "from server.weather_server import OPENWEATHER_API_KEY; print('Server can load')"

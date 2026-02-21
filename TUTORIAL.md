@@ -97,14 +97,21 @@ async def call_tool(name: str, arguments: Any) -> list[TextContent]:
 
 ### 2. MCP Client (`client/weather_client.py`)
 
-The client connects to the server and orchestrates the interaction with Claude.
+The client connects to the server and orchestrates the interaction with AI models.
+
+**Configurable Architecture:**
+The client supports multiple AI providers through an abstract `AIProvider` interface:
+- `GeminiProvider` - Google Gemini (FREE tier)
+- `AnthropicProvider` - Anthropic Claude (paid)
+
+Switch providers by setting `AI_PROVIDER=gemini` or `AI_PROVIDER=anthropic` in `.env`.
 
 **Key responsibilities:**
 1. Connect to MCP server via stdio
 2. Discover available tools
-3. Send user queries to Gemini
-4. Route Gemini's function calls to the MCP server
-5. Return results back to Gemini
+3. Send user queries to AI provider
+4. Route AI's tool calls to the MCP server
+5. Return results back to AI
 6. Present final response to user
 
 **The agentic loop:**
@@ -290,6 +297,24 @@ Tool(
     inputSchema={...}
 )
 ```
+
+### Add More AI Providers
+The client uses a plugin architecture. To add a new provider:
+
+```python
+class OpenAIProvider(AIProvider):
+    def __init__(self):
+        self.client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+
+    def get_name(self) -> str:
+        return "OpenAI GPT-4"
+
+    async def process_query(self, query, tools, session):
+        # Implement OpenAI function calling
+        ...
+```
+
+Then update `WeatherClient._create_provider()` to support `AI_PROVIDER=openai`.
 
 ### Add Resources
 ```python

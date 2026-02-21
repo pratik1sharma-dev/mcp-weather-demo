@@ -7,13 +7,15 @@ A demonstration of the Model Context Protocol (MCP) using a weather service as t
 This demo showcases how MCP enables AI models to interact with external services through a standardized protocol. It consists of:
 
 - **MCP Server**: Exposes weather-related tools (current weather, forecasts, alerts)
-- **Client Application**: Connects to the server and uses Google Gemini (FREE tier!) to answer weather queries
+- **Client Application**: Connects to the server and uses AI (configurable: Gemini or Claude) to answer weather queries
 
 ## Prerequisites
 
 - Python 3.10+
-- OpenWeatherMap API key (FREE tier: https://openweathermap.org/api)
-- Google Gemini API key (FREE tier: https://makersuite.google.com/app/apikey) ⭐
+- OpenWeatherMap API key (FREE: https://openweathermap.org/api)
+- **Choose your AI provider:**
+  - **Google Gemini** (Recommended for demos - FREE tier) ⭐
+  - **Anthropic Claude** (Paid, but $5 free credits for new accounts)
 
 ## Quick Start
 
@@ -23,16 +25,25 @@ cd mcp-weather-demo
 pip install -r requirements.txt
 ```
 
-2. **Get FREE API keys**:
-   - OpenWeatherMap: https://openweathermap.org/api
-   - Google Gemini: https://makersuite.google.com/app/apikey ⭐ **Generous free tier!**
+2. **Get API keys**:
+   - OpenWeatherMap: https://openweathermap.org/api (FREE)
+   - **Option A (Recommended)**: Google Gemini: https://makersuite.google.com/app/apikey (FREE) ⭐
+   - **Option B**: Anthropic Claude: https://console.anthropic.com/ ($5 free credits)
 
 3. **Configure environment**:
 ```bash
 cp .env.example .env
-# Edit .env and add your API keys:
-# OPENWEATHER_API_KEY=your_key_here
-# GEMINI_API_KEY=your_key_here
+# Edit .env and choose your AI provider:
+
+# For Gemini (FREE, recommended for demos):
+AI_PROVIDER=gemini
+OPENWEATHER_API_KEY=your_key_here
+GEMINI_API_KEY=your_gemini_key_here
+
+# OR for Claude (paid):
+AI_PROVIDER=anthropic
+OPENWEATHER_API_KEY=your_key_here
+ANTHROPIC_API_KEY=your_anthropic_key_here
 ```
 
 4. **Run the demo**:
@@ -69,9 +80,11 @@ python -m client.weather_client
 
 This starts an interactive session where you can ask weather questions. The client automatically:
 - Connects to the MCP server (no separate terminal needed!)
-- Uses Google Gemini to understand your queries
+- Uses your configured AI provider (Gemini or Claude)
 - Calls the appropriate weather tools
 - Presents natural language responses
+
+You can switch providers by changing `AI_PROVIDER` in your `.env` file.
 
 ### Demo Mode
 
@@ -92,19 +105,24 @@ Try asking:
 
 ## How It Works
 
-1. **Client** sends a user query to Google Gemini
-2. **Gemini** decides which weather tools to call based on the query
+1. **Client** sends a user query to AI (Gemini or Claude)
+2. **AI** decides which weather tools to call based on the query
 3. **Client** forwards tool calls to the **MCP Server** via MCP protocol
 4. **MCP Server** fetches weather data from OpenWeatherMap API
-5. **Client** sends tool results back to Gemini
-6. **Gemini** synthesizes a natural language response
+5. **Client** sends tool results back to AI
+6. **AI** synthesizes a natural language response
 
-## Why Gemini?
+## AI Provider Comparison
 
-✅ **Generous FREE tier** - 15 requests per minute, 1500 requests per day
-✅ **Function calling support** - Perfect for MCP tools
-✅ **Fast and reliable** - Great for demos and tutorials
-✅ **No credit card required** - Just sign in with Google
+| Feature | Gemini (Default) | Claude |
+|---------|------------------|--------|
+| **Cost** | ⭐ FREE (generous limits) | Paid ($5 free credits) |
+| **Rate Limits** | 15/min, 1500/day | Based on plan |
+| **Function Calling** | ✅ Excellent | ✅ Excellent |
+| **Setup** | Sign in with Google | Credit card required |
+| **Best For** | Demos, tutorials, testing | Production apps |
+
+**Recommendation**: Start with **Gemini** (free) for demos and learning!
 
 ## MCP Concepts Demonstrated
 
