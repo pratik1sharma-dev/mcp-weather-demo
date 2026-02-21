@@ -44,7 +44,7 @@ pip install anthropic==0.39.0 mcp==1.0.0 requests==2.31.0 python-dotenv==1.0.0
 **Correct format:**
 ```
 OPENWEATHER_API_KEY=abc123def456
-ANTHROPIC_API_KEY=sk-ant-123456
+GEMINI_API_KEY=AIzaSy...
 ```
 
 **Incorrect formats:**
@@ -62,17 +62,18 @@ OPENWEATHER_API_KEY=your_key_here  # ❌ placeholder
 3. Check that you're using the correct key type (free tier works)
 4. Ensure no extra characters were copied
 
-### Issue: Anthropic API errors
+### Issue: Gemini API errors
 
 **Common causes:**
 - Invalid API key
-- Insufficient credits
-- Rate limiting
+- Rate limiting (free tier: 15 requests/min, 1500/day)
+- API not enabled
 
 **Solution:**
-1. Check key at https://console.anthropic.com/
-2. Verify account has credits
-3. Add error handling in code
+1. Check key at https://makersuite.google.com/app/apikey
+2. Verify API is enabled for your Google Cloud project
+3. Check rate limits if getting 429 errors
+4. Wait a minute and try again
 
 ## Runtime Issues
 
@@ -143,30 +144,31 @@ python -m client.weather_client
 - Use timeout parameters
 - Check network connection
 
-## Claude Integration Issues
+## Gemini Integration Issues
 
-### Issue: Claude not using tools
+### Issue: Gemini not using tools
 
 **Symptoms:**
-- Claude responds without calling weather tools
-- Response is generic or says "I can't access real-time data"
+- Gemini responds without calling weather tools
+- Response is generic or says "I don't have real-time data"
 
 **Solutions:**
 
 1. **Check tool definitions**: Ensure tools are properly formatted
 ```python
-# Tools must be in Anthropic format
-anthropic_tools = [{
-    "name": tool.name,
-    "description": tool.description,
-    "input_schema": tool.inputSchema,
-}]
+# Tools must be in Gemini function declaration format
+function_declaration = genai.protos.FunctionDeclaration(
+    name=tool.name,
+    description=tool.description,
+    parameters=genai.protos.Schema(...)
+)
 ```
 
-2. **Check model version**: Use a recent Claude model
+2. **Check model version**: Use Gemini 1.5
 ```python
-model="claude-3-5-sonnet-20241022"  # Good
-model="claude-2.0"  # Older, may not work well
+model_name='gemini-1.5-flash'  # Good (free tier)
+model_name='gemini-1.5-pro'    # Also good (paid)
+model_name='gemini-1.0-pro'    # Older, may not work as well
 ```
 
 3. **Improve prompts**: Be explicit
@@ -174,6 +176,17 @@ model="claude-2.0"  # Older, may not work well
 Bad:  "What's the weather?"
 Good: "What's the current weather in Boston?"
 ```
+
+### Issue: "Resource exhausted" or 429 errors
+
+**Cause:** Exceeded free tier limits
+- 15 requests per minute
+- 1500 requests per day
+
+**Solution:**
+- Wait a minute between queries
+- Add rate limiting to your code
+- Consider upgrading to paid tier for higher limits
 
 ### Issue: Tool loop / infinite recursion
 
@@ -340,10 +353,10 @@ Run this to verify setup:
 python --version
 
 # 2. Check packages
-pip list | grep -E "anthropic|mcp|requests"
+pip list | grep -E "google-generativeai|mcp|requests"
 
 # 3. Check environment
-python -c "from dotenv import load_dotenv; import os; load_dotenv(); print('Weather API:', 'OK' if os.getenv('OPENWEATHER_API_KEY') else 'MISSING'); print('Anthropic API:', 'OK' if os.getenv('ANTHROPIC_API_KEY') else 'MISSING')"
+python -c "from dotenv import load_dotenv; import os; load_dotenv(); print('Weather API:', 'OK' if os.getenv('OPENWEATHER_API_KEY') else 'MISSING'); print('Gemini API:', 'OK' if os.getenv('GEMINI_API_KEY') else 'MISSING')"
 
 # 4. Test server
 python -c "from server.weather_server import OPENWEATHER_API_KEY; print('Server can load')"

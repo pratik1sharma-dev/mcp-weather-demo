@@ -102,34 +102,41 @@ The client connects to the server and orchestrates the interaction with Claude.
 **Key responsibilities:**
 1. Connect to MCP server via stdio
 2. Discover available tools
-3. Send user queries to Claude
-4. Route Claude's tool calls to the MCP server
-5. Return results back to Claude
+3. Send user queries to Gemini
+4. Route Gemini's function calls to the MCP server
+5. Return results back to Gemini
 6. Present final response to user
 
 **The agentic loop:**
 
 ```python
-while True:
-    # 1. Claude decides what to do
-    response = self.client.messages.create(
-        model="claude-3-5-sonnet-20241022",
-        tools=anthropic_tools,
-        messages=messages,
-    )
+# Start chat with Gemini
+chat = model_with_tools.start_chat()
+response = chat.send_message(query)
 
-    # 2. If Claude wants to use a tool
-    if response.stop_reason == "tool_use":
-        # 3. Call the MCP server
-        result = await self.session.call_tool(tool_name, tool_args)
+for iteration in range(max_iterations):
+    # 1. Check if Gemini wants to call a function
+    if hasattr(part, 'function_call') and part.function_call:
+        function_call = part.function_call
 
-        # 4. Send results back to Claude
-        messages.append({"role": "user", "content": tool_results})
+        # 2. Call the MCP server
+        result = await self.session.call_tool(
+            function_call.name,
+            dict(function_call.args)
+        )
+
+        # 3. Send results back to Gemini
+        response = chat.send_message(
+            function_response=FunctionResponse(
+                name=function_call.name,
+                response={'result': result_text}
+            )
+        )
         # Loop continues...
 
-    # 5. Claude provides final answer
-    elif response.stop_reason == "end_turn":
-        # Display response and exit loop
+    # 4. Gemini provides final answer
+    elif hasattr(part, 'text') and part.text:
+        print(part.text)
         break
 ```
 
@@ -182,13 +189,15 @@ Let's trace: **"What's the weather in Tokyo?"**
 1. User asks: "What's the weather in Tokyo?"
    │
    ▼
-2. Client sends query to Claude API
+2. Client sends query to Gemini API
    │
    ▼
-3. Claude analyzes query and decides to use tool
+3. Gemini analyzes query and decides to use tool
    Returns: {
-     "tool_use": "get_current_weather",
-     "arguments": {"city": "Tokyo"}
+     "function_call": {
+       "name": "get_current_weather",
+       "args": {"city": "Tokyo"}
+     }
    }
    │
    ▼
@@ -202,10 +211,10 @@ Let's trace: **"What's the weather in Tokyo?"**
    - Returns to client
    │
    ▼
-6. Client sends tool result back to Claude
+6. Client sends tool result back to Gemini
    │
    ▼
-7. Claude synthesizes natural language response
+7. Gemini synthesizes natural language response
    "The current weather in Tokyo is partly cloudy
    with a temperature of 15°C..."
    │
@@ -303,21 +312,21 @@ async def check_auth(headers):
 ### Pattern 1: Multi-Step Queries
 User: "Compare weather in Paris and Berlin"
 
-→ Claude calls `get_current_weather` twice
+→ Gemini calls `get_current_weather` twice
 → Synthesizes comparison
 
 ### Pattern 2: Clarification
 User: "What's the weather?"
 
-→ Claude asks: "Which city?"
+→ Gemini asks: "Which city?"
 → User: "Seattle"
-→ Claude calls tool with clarified input
+→ Gemini calls tool with clarified input
 
 ### Pattern 3: Tool Chaining
 User: "Give me weather and forecast for NYC"
 
-→ Claude calls `get_current_weather`
-→ Claude calls `get_forecast`
+→ Gemini calls `get_current_weather`
+→ Gemini calls `get_forecast`
 → Combines results
 
 ## Debugging Tips
@@ -345,16 +354,18 @@ echo '{"jsonrpc":"2.0","method":"tools/list","id":1}' | python -m server.weather
 ## Presentation Tips
 
 1. **Start with the "why"**: Explain the problem MCP solves
-2. **Show the flow**: Use diagrams to visualize client → Claude → server → API
+2. **Show the flow**: Use diagrams to visualize client → Gemini → server → API
 3. **Live demo**: Run interactive mode and show real queries
-4. **Show the code**: Walk through key parts (tool definition, tool calling)
+4. **Show the code**: Walk through key parts (tool definition, function calling)
 5. **Discuss extensibility**: How easy it is to add new tools
+6. **Highlight free tier**: Emphasize that this demo costs $0 to run!
 
 ## Resources
 
 - MCP Specification: https://spec.modelcontextprotocol.io/
 - MCP Python SDK: https://github.com/modelcontextprotocol/python-sdk
-- Anthropic Documentation: https://docs.anthropic.com/
+- Google Gemini API: https://ai.google.dev/
+- Gemini API Key (FREE): https://makersuite.google.com/app/apikey
 - OpenWeatherMap API: https://openweathermap.org/api
 
 ## Next Steps

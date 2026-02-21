@@ -2,15 +2,16 @@
 """
 MCP Weather Client
 
-Connects to the MCP Weather Server and uses Claude to process weather queries.
+Connects to the MCP Weather Server and uses Google Gemini to process weather queries.
 """
 
 import asyncio
 import os
 import sys
+import json
 from contextlib import AsyncExitStack
 
-from anthropic import Anthropic
+import google.generativeai as genai
 from dotenv import load_dotenv
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
@@ -18,17 +19,28 @@ from mcp.client.stdio import stdio_client
 # Load environment variables
 load_dotenv()
 
-# Anthropic API configuration
-ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
+# Gemini API configuration
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
 
 class WeatherClient:
     """
-    Client that connects to MCP Weather Server and uses Claude.
+    Client that connects to MCP Weather Server and uses Gemini.
     """
 
     def __init__(self):
-        self.client = Anthropic(api_key=ANTHROPIC_API_KEY)
+        if not GEMINI_API_KEY:
+            raise ValueError("GEMINI_API_KEY not set in environment")
+
+        genai.configure(api_key=GEMINI_API_KEY)
+        self.model = genai.GenerativeModel(
+            model_name='gemini-1.5-flash',  # Free tier model
+            generation_config={
+                'temperature': 0.7,
+                'top_p': 0.95,
+                'max_output_tokens': 8192,
+            }
+        )
         self.session = None
         self.exit_stack = AsyncExitStack()
 
@@ -60,9 +72,43 @@ class WeatherClient:
 
         return tools
 
+    def convert_to_gemini_tools(self, mcp_tools):
+        """
+        Convert MCP tools to Gemini function declarations.
+
+        Args:
+            mcp_tools: List of MCP Tool objects
+
+        Returns:
+            List of Gemini function declarations
+        """
+        gemini_tools = []
+
+        for tool in mcp_tools:
+            function_declaration = genai.protos.FunctionDeclaration(
+                name=tool.name,
+                description=tool.description,
+                parameters=genai.protos.Schema(
+                    type=genai.protos.Type.OBJECT,
+                    properties={
+                        prop_name: genai.protos.Schema(
+                            type=genai.protos.Type.STRING if prop_def.get('type') == 'string'
+                                 else genai.protos.Type.NUMBER if prop_def.get('type') == 'number'
+                                 else genai.protos.Type.STRING,
+                            description=prop_def.get('description', '')
+                        )
+                        for prop_name, prop_def in tool.inputSchema.get('properties', {}).items()
+                    },
+                    required=tool.inputSchema.get('required', [])
+                )
+            )
+            gemini_tools.append(function_declaration)
+
+        return gemini_tools
+
     async def process_query(self, query: str, tools: list):
         """
-        Process a weather query using Claude and MCP tools.
+        Process a weather query using Gemini and MCP tools.
 
         Args:
             query: User's weather query
@@ -70,67 +116,70 @@ class WeatherClient:
         """
         print(f"🤔 Query: {query}\n")
 
-        # Convert MCP tools to Anthropic tool format
-        anthropic_tools = [
-            {
-                "name": tool.name,
-                "description": tool.description,
-                "input_schema": tool.inputSchema,
-            }
-            for tool in tools
-        ]
+        # Convert MCP tools to Gemini format
+        gemini_tools = self.convert_to_gemini_tools(tools)
 
-        # Initial message to Claude
-        messages = [{"role": "user", "content": query}]
+        # Create a model with tools
+        model_with_tools = genai.GenerativeModel(
+            model_name='gemini-1.5-flash',
+            tools=gemini_tools
+        )
 
-        # Agentic loop: Claude may need multiple turns to complete the task
-        while True:
-            response = self.client.messages.create(
-                model="claude-3-5-sonnet-20241022",
-                max_tokens=4096,
-                tools=anthropic_tools,
-                messages=messages,
-            )
+        # Start chat
+        chat = model_with_tools.start_chat(enable_automatic_function_calling=False)
 
-            # Check if Claude wants to use tools
-            if response.stop_reason == "tool_use":
-                # Process tool calls
-                tool_results = []
+        # Send initial message
+        response = chat.send_message(query)
 
-                for block in response.content:
-                    if block.type == "tool_use":
-                        tool_name = block.name
-                        tool_args = block.input
+        # Agentic loop: Handle function calls
+        max_iterations = 10
+        for iteration in range(max_iterations):
+            # Check if Gemini wants to call functions
+            if response.candidates[0].content.parts:
+                part = response.candidates[0].content.parts[0]
 
-                        print(f"🔧 Calling tool: {tool_name}", file=sys.stderr)
-                        print(f"   Arguments: {tool_args}", file=sys.stderr)
+                # If there's a function call
+                if hasattr(part, 'function_call') and part.function_call:
+                    function_call = part.function_call
+                    function_name = function_call.name
+                    function_args = dict(function_call.args)
 
-                        # Call the MCP server
-                        result = await self.session.call_tool(tool_name, tool_args)
+                    print(f"🔧 Calling tool: {function_name}", file=sys.stderr)
+                    print(f"   Arguments: {function_args}", file=sys.stderr)
 
-                        tool_results.append({
-                            "type": "tool_result",
-                            "tool_use_id": block.id,
-                            "content": result.content,
-                        })
+                    # Call the MCP server
+                    result = await self.session.call_tool(function_name, function_args)
 
-                # Add assistant response and tool results to messages
-                messages.append({"role": "assistant", "content": response.content})
-                messages.append({"role": "user", "content": tool_results})
+                    # Extract text from result
+                    result_text = ""
+                    for content in result.content:
+                        if hasattr(content, 'text'):
+                            result_text += content.text
 
-            elif response.stop_reason == "end_turn":
-                # Claude has finished, extract the final response
-                final_response = ""
-                for block in response.content:
-                    if hasattr(block, "text"):
-                        final_response += block.text
+                    # Send function response back to Gemini
+                    response = chat.send_message(
+                        genai.protos.Content(
+                            parts=[
+                                genai.protos.Part(
+                                    function_response=genai.protos.FunctionResponse(
+                                        name=function_name,
+                                        response={'result': result_text}
+                                    )
+                                )
+                            ]
+                        )
+                    )
 
-                print(f"🤖 Claude's Response:\n{final_response}\n")
-                break
-
+                # If there's text (final response)
+                elif hasattr(part, 'text') and part.text:
+                    print(f"🤖 Gemini's Response:\n{part.text}\n")
+                    break
             else:
-                print(f"⚠️  Unexpected stop reason: {response.stop_reason}", file=sys.stderr)
+                # Empty response, shouldn't happen
+                print("⚠️  Received empty response from Gemini", file=sys.stderr)
                 break
+        else:
+            print("⚠️  Max iterations reached", file=sys.stderr)
 
     async def run_interactive(self):
         """
@@ -139,7 +188,7 @@ class WeatherClient:
         tools = await self.connect_to_server()
 
         print("=" * 60)
-        print("🌤️  MCP Weather Demo - Interactive Mode")
+        print("🌤️  MCP Weather Demo - Interactive Mode (Powered by Gemini)")
         print("=" * 60)
         print("\nAsk me about the weather! Examples:")
         print("  - What's the weather like in San Francisco?")
@@ -179,7 +228,7 @@ class WeatherClient:
         ]
 
         print("=" * 60)
-        print("🌤️  MCP Weather Demo - Automated Demo")
+        print("🌤️  MCP Weather Demo - Automated Demo (Powered by Gemini)")
         print("=" * 60)
         print()
 
@@ -200,8 +249,9 @@ async def main():
     """
     Main entry point.
     """
-    if not ANTHROPIC_API_KEY:
-        print("Error: ANTHROPIC_API_KEY not set", file=sys.stderr)
+    if not GEMINI_API_KEY:
+        print("Error: GEMINI_API_KEY not set", file=sys.stderr)
+        print("\nGet your FREE API key from: https://makersuite.google.com/app/apikey", file=sys.stderr)
         sys.exit(1)
 
     client = WeatherClient()
