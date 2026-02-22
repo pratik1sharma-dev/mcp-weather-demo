@@ -107,7 +107,7 @@ class GeminiProvider(AIProvider):
         gemini_tools = self._convert_to_gemini_tools(tools)
 
         model_with_tools = self.genai.GenerativeModel(
-            model_name="gemini-1.5-flash", tools=gemini_tools
+            model_name="gemini-2.5-flash", tools=gemini_tools
         )
 
         chat = model_with_tools.start_chat(enable_automatic_function_calling=False)
